@@ -9,11 +9,14 @@ from settings import *
 
 
 class Editor:
-    def __init__(self):
+    def __init__(self, land_tiles):
         # main setup
         self.display_surface = pygame.display.get_surface()
         # This is a dictionary that contains all the data for the tiles
         self.canvas_data = {}
+
+        # imports the graphics for the tiles
+        self.land_tiles = land_tiles
 
         # navigation
         self.origin = vector()
@@ -143,8 +146,7 @@ class Editor:
                 self.display_surface.blit(test_surf, position)
 
             if tile.has_terrain:
-                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
-                test_surf.fill('brown')
+                test_surf = self.land_tiles['X']
                 self.display_surface.blit(test_surf, position)
 
             # coins
