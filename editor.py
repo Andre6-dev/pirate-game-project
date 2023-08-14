@@ -7,6 +7,7 @@ from pygame.image import load
 
 from menu import Menu
 from settings import *
+from support import import_folder
 
 
 class Editor:
@@ -93,6 +94,24 @@ class Editor:
 
     def import_water(self):
         self.water_bottom = load(f'graphics/terrain/water/water_bottom.png').convert_alpha()
+
+        # Animations
+        self.animations = {}
+        for key, value in EDITOR_DATA.items():
+            if value['graphics']:
+                graphics = import_folder(value['graphics'])
+                self.animations[key] = {
+                    'frame index': 0,
+                    'frames': graphics,
+                    'length': len(graphics)
+                }
+
+    def animation_update(self, dt):
+        for value in self.animations.values():
+            value['frame index'] += ANIMATION_SPEED * dt
+            # If the animation has reached the end, reset it to the beginning
+            if value['frame index'] >= value['length']:
+                value['frame index'] = 0
 
     # input
     def event_loop(self):
@@ -189,9 +208,11 @@ class Editor:
                 if tile.water_on_top:
                     self.display_surface.blit(self.water_bottom, position)
                 else:
-                    test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
-                    test_surf.fill('red')
-                    self.display_surface.blit(test_surf, position)
+                    # 3 is the key for the water animation
+                    frames = self.animations[3]['frames']
+                    index = int(self.animations[3]['frame index'])
+                    surf = frames[index]
+                    self.display_surface.blit(surf, position)
 
             if tile.has_terrain:
                 terrain_string = ''.join(tile.terrain_neighbors)
@@ -201,19 +222,26 @@ class Editor:
 
             # coins
             if tile.coin:
-                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
-                test_surf.fill('yellow')
-                self.display_surface.blit(test_surf, position)
+                frames = self.animations[tile.coin]['frames']
+                index = int(self.animations[tile.coin]['frame index'])
+                surf = frames[index]
+                rect = surf.get_rect(center=(position[0] + TILE_SIZE / 2, position[1] + TILE_SIZE / 2))
+                self.display_surface.blit(surf, rect)
 
             # enemies
             if tile.enemy:
-                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
-                test_surf.fill('black')
-                self.display_surface.blit(test_surf, position)
+                frames = self.animations[tile.enemy]['frames']
+                index = int(self.animations[tile.enemy]['frame index'])
+                surf = frames[index]
+                rect = surf.get_rect(midbottom=(position[0] + TILE_SIZE / 2, position[1] + TILE_SIZE))
+                self.display_surface.blit(surf, rect)
 
     # Update
     def run(self, dt):
         self.event_loop()
+
+        # Updating
+        self.animation_update(dt)
 
         # drawing
         self.display_surface.fill('gray')
