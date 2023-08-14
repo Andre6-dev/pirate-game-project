@@ -3,6 +3,7 @@ import sys
 from pygame.math import Vector2 as vector
 from pygame.mouse import get_pos as mouse_pos
 from pygame.mouse import get_pressed as mouse_buttons
+from pygame.image import load
 
 from menu import Menu
 from settings import *
@@ -11,12 +12,14 @@ from settings import *
 class Editor:
     def __init__(self, land_tiles):
         # main setup
+        self.water_bottom = None
         self.display_surface = pygame.display.get_surface()
         # This is a dictionary that contains all the data for the tiles
         self.canvas_data = {}
 
         # imports the graphics for the tiles
         self.land_tiles = land_tiles
+        self.import_water()
 
         # navigation
         self.origin = vector()
@@ -67,18 +70,29 @@ class Editor:
                 print(self.canvas_data)
                 # If it does, clear the terrain neighbors list for that cell
                 self.canvas_data[cell].terrain_neighbors = []
+                self.canvas_data[cell].water_on_top = False
 
                 # Iterate over each neighbor direction
                 for name, side in NEIGHBOR_DIRECTIONS.items():
                     # Calculate the coordinates of the neighboring cell
                     neighbor_cell = (cell[0] + side[0], cell[1] + side[1])
 
-                    # Check if the neighboring cell exists in the canvas data and has terrain
-                    if neighbor_cell in self.canvas_data and self.canvas_data[neighbor_cell].has_terrain:
-                        # If it does, add the direction to the terrain neighbors list for the current cell
-                        self.canvas_data[cell].terrain_neighbors.append(name)
+                    if neighbor_cell in self.canvas_data:
+
+                        # Water top neighbor Water in the current tile
+                        # and another water tile above it, 'A' is for top part
+                        if self.canvas_data[neighbor_cell].has_water and self.canvas_data[cell].has_water and name == 'A':
+                            self.canvas_data[cell].water_on_top = True
+
+                        # Check if the neighboring cell exists in the canvas data and has terrain
+                        if self.canvas_data[neighbor_cell].has_terrain:
+                            # If it does, add the direction to the terrain neighbors list for the current cell
+                            self.canvas_data[cell].terrain_neighbors.append(name)
 
                 print(self.canvas_data[cell].terrain_neighbors)
+
+    def import_water(self):
+        self.water_bottom = load(f'graphics/terrain/water/water_bottom.png').convert_alpha()
 
     # input
     def event_loop(self):
@@ -172,10 +186,12 @@ class Editor:
 
             # water
             if tile.has_water:
-                print(tile.has_water)
-                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
-                test_surf.fill('blue')
-                self.display_surface.blit(test_surf, position)
+                if tile.water_on_top:
+                    self.display_surface.blit(self.water_bottom, position)
+                else:
+                    test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+                    test_surf.fill('red')
+                    self.display_surface.blit(test_surf, position)
 
             if tile.has_terrain:
                 terrain_string = ''.join(tile.terrain_neighbors)
