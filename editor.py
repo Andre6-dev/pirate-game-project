@@ -1,5 +1,3 @@
-
-
 import pygame
 import sys
 from pygame.math import Vector2 as vector
@@ -112,10 +110,7 @@ class Editor:
                     self.canvas_data[current_cell] = CanvasTile(self.selection_index)
                 self.last_selected_cell = current_cell
 
-        for key, value in self.canvas_data.items():
-            print(f'{key}: {value.has_terrain}')
-
-    # drawing
+    # Drawing
     def draw_tile_lines(self):
         cols = WINDOW_WIDTH // TILE_SIZE
         rows = WINDOW_HEIGHT // TILE_SIZE
@@ -136,11 +131,41 @@ class Editor:
 
         self.display_surface.blit(self.support_line_surf, (0, 0))
 
+    def draw_level(self):
+        for cell_pos, tile in self.canvas_data.items():
+            position = self.origin + vector(cell_pos) * TILE_SIZE
+
+            # water
+            if tile.has_water:
+                print(tile.has_water)
+                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+                test_surf.fill('blue')
+                self.display_surface.blit(test_surf, position)
+
+            if tile.has_terrain:
+                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+                test_surf.fill('brown')
+                self.display_surface.blit(test_surf, position)
+
+            # coins
+            if tile.coin:
+                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+                test_surf.fill('yellow')
+                self.display_surface.blit(test_surf, position)
+
+            # enemies
+            if tile.enemy:
+                test_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+                test_surf.fill('black')
+                self.display_surface.blit(test_surf, position)
+
+    # Update
     def run(self, dt):
         self.event_loop()
 
         # drawing
         self.display_surface.fill('gray')
+        self.draw_level()
         self.draw_tile_lines()
         pygame.draw.circle(self.display_surface, 'red', self.origin, 10)
         self.menu.display(self.selection_index)
@@ -170,7 +195,11 @@ class CanvasTile:
     def add_id(self, tile_id):
         options = {key: value['style'] for key, value in EDITOR_DATA.items()}
         match options[tile_id]:
-            case 'terrain': self.has_terrain = True
-            case 'water': self.has_water = True
-            case 'coin': self.coin = tile_id
-            case 'water': self.enemy = tile_id
+            case 'terrain':
+                self.has_terrain = True
+            case 'water':
+                self.has_water = True
+            case 'coin':
+                self.coin = tile_id
+            case 'enemy':
+                self.enemy = tile_id
