@@ -1,3 +1,5 @@
+
+
 import pygame
 import sys
 from pygame.math import Vector2 as vector
@@ -12,6 +14,8 @@ class Editor:
     def __init__(self):
         # main setup
         self.display_surface = pygame.display.get_surface()
+        # This is a dictionary that contains all the data for the tiles
+        self.canvas_data = {}
 
         # navigation
         self.origin = vector()
@@ -25,9 +29,25 @@ class Editor:
 
         # Selection
         self.selection_index = 2
+        self.last_selected_cell = None
 
         # Menu
         self.menu = Menu()
+
+    # Support: get current cell
+    def get_current_cell(self):
+        distance_to_origin = vector(mouse_pos()) - self.origin
+        if distance_to_origin.x > 0:
+            col = int(distance_to_origin.x / TILE_SIZE)
+        else:
+            col = int(distance_to_origin.x / TILE_SIZE) - 1
+
+        if distance_to_origin.y > 0:
+            row = int(distance_to_origin.y / TILE_SIZE)
+        else:
+            row = int(distance_to_origin.y / TILE_SIZE) - 1
+
+        return col, row
 
     # input
     def event_loop(self):
@@ -40,6 +60,7 @@ class Editor:
             self.pan_input(event)
             self.selection_hotkeys(event)
             self.menu_click(event)
+            self.canvas_add()
 
     def pan_input(self, event):
 
@@ -76,6 +97,24 @@ class Editor:
         if event.type == pygame.MOUSEBUTTONDOWN and self.menu.rect.collidepoint(mouse_pos()):
             self.selection_index = self.menu.click(mouse_pos(), mouse_buttons())
 
+    def canvas_add(self):
+        # Explain: mouse_buttons()[0] returns True if the left mouse button is pressed
+        # and we're not clicking on the menu
+        if mouse_buttons()[0] and not self.menu.rect.collidepoint(mouse_pos()):
+            current_cell = self.get_current_cell()
+
+            #
+            if current_cell != self.last_selected_cell:
+                if current_cell in self.canvas_data:
+                    self.canvas_data[current_cell].add_id(self.selection_index)
+                else:
+                    # The dictionary have the current cell as key and the value is the selection index
+                    self.canvas_data[current_cell] = CanvasTile(self.selection_index)
+                self.last_selected_cell = current_cell
+
+        for key, value in self.canvas_data.items():
+            print(f'{key}: {value.has_terrain}')
+
     # drawing
     def draw_tile_lines(self):
         cols = WINDOW_WIDTH // TILE_SIZE
@@ -105,3 +144,33 @@ class Editor:
         self.draw_tile_lines()
         pygame.draw.circle(self.display_surface, 'red', self.origin, 10)
         self.menu.display(self.selection_index)
+
+
+class CanvasTile:
+    def __init__(self, tile_id):
+        # Terrain
+        self.has_terrain = False
+        self.terrain_neighbors = []
+
+        # Water
+        self.has_water = False
+        self.water_on_top = False
+
+        # Coin
+        self.coin = None  # 4, 5 or 6
+
+        # Enemy
+        self.enemy = None
+
+        # Objects
+        self.objects = []
+
+        self.add_id(tile_id)
+
+    def add_id(self, tile_id):
+        options = {key: value['style'] for key, value in EDITOR_DATA.items()}
+        match options[tile_id]:
+            case 'terrain': self.has_terrain = True
+            case 'water': self.has_water = True
+            case 'coin': self.coin = tile_id
+            case 'water': self.enemy = tile_id
