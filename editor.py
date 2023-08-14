@@ -50,6 +50,36 @@ class Editor:
 
         return col, row
 
+    def check_neighbors(self, cell_pos):
+
+        # Create a local cluster of cells
+        cluster_size = 3
+        local_cluster = [
+            (cell_pos[0] + col - int(cluster_size / 2), cell_pos[1] + row - int(cluster_size / 2))
+            for col in range(cluster_size)
+            for row in range(cluster_size)]
+
+        # check neighbors
+        # Iterate over each cell in the local cluster
+        for cell in local_cluster:
+            # Check if the current cell exists in the canvas data
+            if cell in self.canvas_data:
+                print(self.canvas_data)
+                # If it does, clear the terrain neighbors list for that cell
+                self.canvas_data[cell].terrain_neighbors = []
+
+                # Iterate over each neighbor direction
+                for name, side in NEIGHBOR_DIRECTIONS.items():
+                    # Calculate the coordinates of the neighboring cell
+                    neighbor_cell = (cell[0] + side[0], cell[1] + side[1])
+
+                    # Check if the neighboring cell exists in the canvas data and has terrain
+                    if neighbor_cell in self.canvas_data and self.canvas_data[neighbor_cell].has_terrain:
+                        # If it does, add the direction to the terrain neighbors list for the current cell
+                        self.canvas_data[cell].terrain_neighbors.append(name)
+
+                print(self.canvas_data[cell].terrain_neighbors)
+
     # input
     def event_loop(self):
         # Explain: pygame.event.get() returns a list of all events
@@ -111,6 +141,8 @@ class Editor:
                 else:
                     # The dictionary have the current cell as key and the value is the selection index
                     self.canvas_data[current_cell] = CanvasTile(self.selection_index)
+
+                self.check_neighbors(current_cell)
                 self.last_selected_cell = current_cell
 
     # Drawing
@@ -146,8 +178,10 @@ class Editor:
                 self.display_surface.blit(test_surf, position)
 
             if tile.has_terrain:
-                test_surf = self.land_tiles['X']
-                self.display_surface.blit(test_surf, position)
+                terrain_string = ''.join(tile.terrain_neighbors)
+                # terraing string in the plane AGH image for example and fint it in the land_tiles dictionary
+                terrain_style = terrain_string if terrain_string in self.land_tiles else 'X'
+                self.display_surface.blit(self.land_tiles[terrain_style], position)
 
             # coins
             if tile.coin:
