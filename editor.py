@@ -1,26 +1,26 @@
-import pygame
-import sys
+import pygame, sys
 from pygame.math import Vector2 as vector
-from pygame.mouse import get_pos as mouse_pos
 from pygame.mouse import get_pressed as mouse_buttons
+from pygame.mouse import get_pos as mouse_pos
 from pygame.image import load
 
-from menu import Menu
 from settings import *
-from support import import_folder
+from support import *
+
+from menu import Menu
+from timer import Timer
 
 
 class Editor:
     def __init__(self, land_tiles):
+
         # main setup
-        self.water_bottom = None
         self.display_surface = pygame.display.get_surface()
-        # This is a dictionary that contains all the data for the tiles
         self.canvas_data = {}
 
-        # imports the graphics for the tiles
+        # imports
         self.land_tiles = land_tiles
-        self.import_water()
+        self.imports()
 
         # navigation
         self.origin = vector()
@@ -32,16 +32,17 @@ class Editor:
         self.support_line_surf.set_colorkey('green')
         self.support_line_surf.set_alpha(30)
 
-        # Selection
+        # selection
         self.selection_index = 2
         self.last_selected_cell = None
 
-        # Menu
+        # menu
         self.menu = Menu()
 
-        # Objects
+        # objects
         self.canvas_objects = pygame.sprite.Group()
         self.object_drag_active = False
+        self.object_timer = Timer(400)
 
         # Player
         CanvasObject(
@@ -49,8 +50,7 @@ class Editor:
             frames=self.animations[0]['frames'],
             tile_id=0,
             origin=self.origin,
-            group=self.canvas_objects
-        )
+            group=self.canvas_objects)
 
         # Sky in the middle of the window
         self.sky_handle = CanvasObject(
@@ -58,12 +58,12 @@ class Editor:
             frames=[self.sky_handle_surf],
             tile_id=1,
             origin=self.origin,
-            group=self.canvas_objects
-        )
+            group=self.canvas_objects)
 
-    # Support: get current cell
+    # Support
     def get_current_cell(self):
         distance_to_origin = vector(mouse_pos()) - self.origin
+
         if distance_to_origin.x > 0:
             col = int(distance_to_origin.x / TILE_SIZE)
         else:
@@ -78,7 +78,7 @@ class Editor:
 
     def check_neighbors(self, cell_pos):
 
-        # Create a local cluster of cells
+        # create a local cluster
         cluster_size = 3
         local_cluster = [
             (cell_pos[0] + col - int(cluster_size / 2), cell_pos[1] + row - int(cluster_size / 2))
@@ -113,13 +113,11 @@ class Editor:
                             # If it does, add the direction to the terrain neighbors list for the current cell
                             self.canvas_data[cell].terrain_neighbors.append(name)
 
-                print(self.canvas_data[cell].terrain_neighbors)
-
-    def import_water(self):
+    def imports(self):
         self.water_bottom = load(f'graphics/terrain/water/water_bottom.png').convert_alpha()
         self.sky_handle_surf = load(f'graphics/cursors/handle.png').convert_alpha()
 
-        # Animations
+        # animations
         self.animations = {}
         for key, value in EDITOR_DATA.items():
             if value['graphics']:
@@ -137,9 +135,14 @@ class Editor:
             if value['frame index'] >= value['length']:
                 value['frame index'] = 0
 
+    def mouse_on_object(self):
+        for sprite in self.canvas_objects:
+            if sprite.rect.collidepoint(mouse_pos()):
+                return sprite
+
     # input
     def event_loop(self):
-        # Explain: pygame.event.get() returns a list of all events
+        # pygame.event.get() returns a list of all events
         # that happened since the last time pygame.event.get() was called.
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -149,6 +152,7 @@ class Editor:
             self.pan_input(event)
             self.selection_hotkeys(event)
             self.menu_click(event)
+
             self.object_drag(event)
 
             self.canvas_add()
@@ -193,13 +197,14 @@ class Editor:
             self.selection_index = self.menu.click(mouse_pos(), mouse_buttons())
 
     def canvas_add(self):
-        # Explain: mouse_buttons()[0] returns True if the left mouse button is pressed
+        # Explain: mouse_buttons()[0] returns True if the left mouse button is pressed,
         # and we're not clicking on the menu
         if mouse_buttons()[0] and not self.menu.rect.collidepoint(mouse_pos()) and not self.object_drag_active:
             current_cell = self.get_current_cell()
-
             if EDITOR_DATA[self.selection_index]['type'] == 'tile':
+
                 if current_cell != self.last_selected_cell:
+
                     if current_cell in self.canvas_data:
                         self.canvas_data[current_cell].add_id(self.selection_index)
                     else:
@@ -208,18 +213,26 @@ class Editor:
 
                     self.check_neighbors(current_cell)
                     self.last_selected_cell = current_cell
-            else:
-                CanvasObject(
-                    pos=mouse_pos(),
-                    frames=self.animations[self.selection_index]['frames'],
-                    tile_id=self.selection_index,
-                    origin=self.origin,
-                    group=self.canvas_objects
-                )
+            else:  # object
+                if not self.object_timer.active:
+                    CanvasObject(
+                        pos=mouse_pos(),
+                        frames=self.animations[self.selection_index]['frames'],
+                        tile_id=self.selection_index,
+                        origin=self.origin,
+                        group=self.canvas_objects)
+                    self.object_timer.activate()
 
     def canvas_remove(self):
         if mouse_buttons()[2] and not self.menu.rect.collidepoint(mouse_pos()):
 
+            # delete object
+            selected_object = self.mouse_on_object()
+            if selected_object:
+                if EDITOR_DATA[selected_object.tile_id]['style'] not in ('player', 'sky'):
+                    selected_object.kill()
+
+            # delete tiles
             if self.canvas_data:
                 current_cell = self.get_current_cell()
                 if current_cell in self.canvas_data:
@@ -242,7 +255,7 @@ class Editor:
                     sprite.drag_end(self.origin)
                     self.object_drag_active = False
 
-    # Drawing
+    # drawing
     def draw_tile_lines(self):
         cols = WINDOW_WIDTH // TILE_SIZE
         rows = WINDOW_HEIGHT // TILE_SIZE
@@ -265,31 +278,31 @@ class Editor:
 
     def draw_level(self):
         for cell_pos, tile in self.canvas_data.items():
-            position = self.origin + vector(cell_pos) * TILE_SIZE
+            pos = self.origin + vector(cell_pos) * TILE_SIZE
 
             # water
             if tile.has_water:
                 if tile.water_on_top:
-                    self.display_surface.blit(self.water_bottom, position)
+                    self.display_surface.blit(self.water_bottom, pos)
                 else:
-                    # 3 is the key for the water animation
+                    # 3 is the index of the water animation
                     frames = self.animations[3]['frames']
                     index = int(self.animations[3]['frame index'])
                     surf = frames[index]
-                    self.display_surface.blit(surf, position)
+                    self.display_surface.blit(surf, pos)
 
             if tile.has_terrain:
                 terrain_string = ''.join(tile.terrain_neighbors)
                 # terraing string in the plane AGH image for example and fint it in the land_tiles dictionary
                 terrain_style = terrain_string if terrain_string in self.land_tiles else 'X'
-                self.display_surface.blit(self.land_tiles[terrain_style], position)
+                self.display_surface.blit(self.land_tiles[terrain_style], pos)
 
             # coins
             if tile.coin:
                 frames = self.animations[tile.coin]['frames']
                 index = int(self.animations[tile.coin]['frame index'])
                 surf = frames[index]
-                rect = surf.get_rect(center=(position[0] + TILE_SIZE / 2, position[1] + TILE_SIZE / 2))
+                rect = surf.get_rect(center=(pos[0] + TILE_SIZE // 2, pos[1] + TILE_SIZE // 2))
                 self.display_surface.blit(surf, rect)
 
             # enemies
@@ -297,17 +310,18 @@ class Editor:
                 frames = self.animations[tile.enemy]['frames']
                 index = int(self.animations[tile.enemy]['frame index'])
                 surf = frames[index]
-                rect = surf.get_rect(midbottom=(position[0] + TILE_SIZE / 2, position[1] + TILE_SIZE))
+                rect = surf.get_rect(midbottom=(pos[0] + TILE_SIZE // 2, pos[1] + TILE_SIZE))
                 self.display_surface.blit(surf, rect)
         self.canvas_objects.draw(self.display_surface)
 
-    # Update
+    # update
     def run(self, dt):
         self.event_loop()
 
-        # Updating
+        # updating
         self.animation_update(dt)
         self.canvas_objects.update(dt)
+        self.object_timer.update()
 
         # drawing
         self.display_surface.fill('gray')
@@ -319,21 +333,22 @@ class Editor:
 
 class CanvasTile:
     def __init__(self, tile_id):
-        # Terrain
+
+        # terrain
         self.has_terrain = False
         self.terrain_neighbors = []
 
-        # Water
+        # water
         self.has_water = False
         self.water_on_top = False
 
-        # Coin
-        self.coin = None  # 4, 5 or 6
+        # coin
+        self.coin = None
 
-        # Enemy
+        # enemy
         self.enemy = None
 
-        # Objects
+        # objects
         self.objects = []
 
         self.add_id(tile_id)
@@ -372,7 +387,6 @@ class CanvasTile:
 class CanvasObject(pygame.sprite.Sprite):
     def __init__(self, pos, frames, tile_id, origin, group):
         super().__init__(group)
-
         self.tile_id = tile_id
 
         # animation
